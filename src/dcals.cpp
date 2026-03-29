@@ -527,110 +527,55 @@ void Dcals_Man_t::BatchErrorEst(IN vector <Lac_Cand_t> & cands, OUT Lac_Cand_t &
     Vec_Ptr_t * vNodes = Abc_NtkDfs(pAppNtk, 0);
     // for different metric types, estimate error upper bound
     int nPo = Abc_NtkPoNum(pAppNtk);
-    if (metricType == Metric_t::ER) {
-        // init boolean difference
-        vector <tVec> bd(pAppSmlt->GetMaxId() + 1, tVec(nBlock, 0));
-        // compute current error
-        int baseErr = GetER(pOriSmlt, pAppSmlt, false, false);
-        // compute po erroneous information
-        tVec isAllPosRight(nBlock, static_cast <uint64_t> (ULLONG_MAX));
-        Abc_Obj_t * pAppPo = nullptr;
-        Abc_Obj_t * pOriPo = nullptr;
-        int i = 0;
-        Abc_NtkForEachPo(pAppNtk, pAppPo, i) {
-            pOriPo = Abc_NtkPo(pOriNtk, i);
-            for (int j = 0; j < nBlock; ++j)
-                isAllPosRight[j] &= (~(pOriSmlt->GetValues(pOriPo, j) ^ pAppSmlt->GetValues(pAppPo, j)));
-        }
-        // compute boolean difference
-        // st = clock();
-        pAppSmlt->UpdateBoolDiff(vNodes, bd);
-        // cout << "boolean difference time = " << clock() - st << endl;
-        // updated the influece of each candidates
-        // st = clock();
-        for (uint32_t ii = 0; ii < cands.size(); ++ii) {
-            Lac_Cand_t & cand = cands[ii];
-            Abc_Obj_t * pCand = cand.GetObj();
-            tVec & isChanged = newValues[ii];
-            for (int i = 0; i < nBlock; ++i)
-                isChanged[i] ^= pAppSmlt->GetValues(pCand, i);
-            int er = baseErr;
-            int movLen = 64 - pAppSmlt->GetLastBlockLen();
-            for (int i = 0; i < nBlock; ++i) {
-                // uint64_t temp = isAllPosRight[i] & isERInc[pCand->Id][i] & isChanged[i];
-                uint64_t temp = isAllPosRight[i] & bd[pCand->Id][i] & isChanged[i];
-                if (i == nBlock - 1) {
-                    temp >>= movLen;
-                    temp <<= movLen;
-                }
-                er += Ckt_CountOneNum(temp);
-            }
-            bestCand.UpdateBest(er / static_cast <double> (pAppSmlt->GetFrameNum()), cand.GetObj(), cand.GetFunc(), cand.GetFanins());
-        }
-        // cout << "evaluate candidate time = " << clock() - st << endl;
+
+    vector < vector <tVec> > bds(nPo);
+    for (auto & bdPo: bds) {
+        bdPo.resize(pAppSmlt->GetMaxId() + 1);
+        for (auto & bdObjPo: bdPo)
+            bdObjPo.resize(nBlock);
     }
-    else if (metricType == Metric_t::NMED || metricType == Metric_t::MRED) {
-        vector < vector <tVec> > bds(nPo);
-        for (auto & bdPo: bds) {
-            bdPo.resize(pAppSmlt->GetMaxId() + 1);
-            for (auto & bdObjPo: bdPo)
-                bdObjPo.resize(nBlock);
-        }
-        int nFrame = pAppSmlt->GetFrameNum();
-        vector < vector <int8_t> > offsets;
-        GetOffset(pOriSmlt, pAppSmlt, false, offsets);
-        int i = 0;
-        Abc_Obj_t * pAppPo = nullptr;
-        Abc_NtkForEachPo(pAppNtk, pAppPo, i)
-            // update the influence on each primary output
-            pAppSmlt->UpdateBoolDiff(pAppPo, vNodes, bds[i]);
-        // updated the influece of each candidates
-        // boost::progress_display pd(cands.size());
-        for (uint32_t ii = 0; ii < cands.size(); ++ii) {
-            // ++pd;
-            Lac_Cand_t & cand = cands[ii];
-            Abc_Obj_t * pCand = cand.GetObj();
-            tVec & isChanged = newValues[ii];
-            for (int i = 0; i < nBlock; ++i)
-                isChanged[i] ^= pAppSmlt->GetValues(pCand, i);
-            vector < vector <int8_t> > offsetsTmp(offsets);
-            for (int i = 0; i < nPo; ++i)
-                offsetsTmp[i].assign(offsets[i].begin(), offsets[i].end());
-            int frameId = 0;
-            for (int blockId = 0; blockId < nBlock; ++blockId) {
-                for (int bitId = 0; bitId < 64; ++bitId) {
-                    if (frameId >= nFrame)
-                        break;
-                    if (Ckt_GetBit(isChanged[blockId], bitId)) {
-                        for (int i = 0; i < nPo; ++i) {
-                            Abc_Obj_t * pAppPo = Abc_NtkPo(pAppNtk, i);
-                            if (Ckt_GetBit(bds[i][pCand->Id][blockId], bitId)) {
-                                if (pAppSmlt->GetValue(pAppPo, blockId, bitId))
-                                    --offsetsTmp[i][frameId];
-                                else
-                                    ++offsetsTmp[i][frameId];
-                            }
-                        }
-                    }
-                    ++frameId;
-                }
-            }
-            if (tmp_isSigned) {
-                for (int i = 0; i < offsetsTmp.size(); ++i) {
-                    for (int j = 0; j < offsetsTmp[i].size(); ++j) {
-                        int bitWidthPerOutput = nPo / tmp_nOutput;
-                        if (offsetsTmp[i][j] & (1 << (bitWidthPerOutput - 1))) {
-                            offsetsTmp[i][j] -= (1 << bitWidthPerOutput);
+    int nFrame = pAppSmlt->GetFrameNum();
+    vector < vector <int8_t> > offsets;
+    GetOffset(pOriSmlt, pAppSmlt, false, offsets);
+    int i = 0;
+    Abc_Obj_t * pAppPo = nullptr;
+    Abc_NtkForEachPo(pAppNtk, pAppPo, i)
+        // update the influence on each primary output
+        pAppSmlt->UpdateBoolDiff(pAppPo, vNodes, bds[i]);
+    // updated the influece of each candidates
+    // boost::progress_display pd(cands.size());
+    for (uint32_t ii = 0; ii < cands.size(); ++ii) {
+        // ++pd;
+        Lac_Cand_t & cand = cands[ii];
+        Abc_Obj_t * pCand = cand.GetObj();
+        tVec & isChanged = newValues[ii];
+        for (int i = 0; i < nBlock; ++i)
+            isChanged[i] ^= pAppSmlt->GetValues(pCand, i);
+        vector < vector <int8_t> > offsetsTmp(offsets);
+        for (int i = 0; i < nPo; ++i)
+            offsetsTmp[i].assign(offsets[i].begin(), offsets[i].end());
+        int frameId = 0;
+        for (int blockId = 0; blockId < nBlock; ++blockId) {
+            for (int bitId = 0; bitId < 64; ++bitId) {
+                if (frameId >= nFrame)
+                    break;
+                if (Ckt_GetBit(isChanged[blockId], bitId)) {
+                    for (int i = 0; i < nPo; ++i) {
+                        Abc_Obj_t * pAppPo = Abc_NtkPo(pAppNtk, i);
+                        if (Ckt_GetBit(bds[i][pCand->Id][blockId], bitId)) {
+                            if (pAppSmlt->GetValue(pAppPo, blockId, bitId))
+                                --offsetsTmp[i][frameId];
+                            else
+                                ++offsetsTmp[i][frameId];
                         }
                     }
                 }
+                ++frameId;
             }
-            double er = GetNMEDFromOffset(offsetsTmp);
-            bestCand.UpdateBest(er, cand.GetObj(), cand.GetFunc(), cand.GetFanins());
         }
+        double er = GetNMEDFromOffset(offsetsTmp);
+        bestCand.UpdateBest(er, cand.GetObj(), cand.GetFunc(), cand.GetFanins());
     }
-    else
-        DASSERT(0);
     // clean up
     Vec_PtrFree(vNodes);
 }

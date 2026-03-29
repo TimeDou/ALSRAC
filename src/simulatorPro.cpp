@@ -1515,14 +1515,12 @@ double GetNMEDFromOffset(IN vector < vector <int8_t> > & offsets)
                     DASSERT(0);
                 weight <<= 1;
             }
-
             if (tmp_isSigned) {
                 bigInt maxVal = (bigInt(1) << (bitWidthPerOutput - 1)) - 1;
                 bigInt minVal = -bigInt(1) << (bitWidthPerOutput - 1);
-                if (emTmp > maxVal) {
+
+                if (emTmp & (bigInt(1) << (bitWidthPerOutput - 1))) {
                     emTmp -= (bigInt(1) << bitWidthPerOutput);
-                } else if (emTmp < minVal) {
-                    emTmp += (bigInt(1) << bitWidthPerOutput);
                 }
             }
 
