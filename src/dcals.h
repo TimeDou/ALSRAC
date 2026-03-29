@@ -43,7 +43,7 @@ public:
     ~Dcals_Man_t();
     Mfs_Par_t * InitMfsPars();
     void DCALS();
-    void LocalAppChange();
+    clock_t LocalAppChange();
     Hop_Obj_t * LocalAppChangeNode(Mfs_Man_t * p, Abc_Obj_t * pNode);
     Aig_Man_t * ConstructAppAig(Mfs_Man_t * p, Abc_Obj_t * pNode);
     void GenCand(IN bool genConst, INOUT std::vector <Lac_Cand_t> & cands);

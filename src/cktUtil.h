@@ -8,7 +8,7 @@
 
 
 // evaluate
-void Ckt_EvalASIC(Abc_Ntk_t * pNtk, std::string fileName, double maxDelay, bool isOutput = false);
+void Ckt_EvalASIC(Abc_Ntk_t * pNtk, std::string fileName, double maxDelay, bool isOutput, double currentError);
 void Ckt_EvalFPGA(Abc_Ntk_t * pNtk, std::string fileName, std::string map = "strash;if -K 6 -a;");
 float Ckt_GetArea(Abc_Ntk_t * pNtk);
 float Ckt_GetDelay(Abc_Ntk_t * pNtk);

@@ -5,7 +5,7 @@ using namespace std;
 
 
 // evaluate
-void Ckt_EvalASIC(Abc_Ntk_t * pNtk, string fileName, double maxDelay, bool isOutput)
+void Ckt_EvalASIC(Abc_Ntk_t * pNtk, string fileName, double maxDelay, bool isOutput, double currentError)
 {
     string Command;
     string resyn2 = "strash; balance; rewrite; refactor; balance; rewrite; rewrite -z; balance; refactor -z; rewrite -z; balance;";
@@ -43,11 +43,11 @@ void Ckt_EvalASIC(Abc_Ntk_t * pNtk, string fileName, double maxDelay, bool isOut
     }
     if (delay >= maxDelay + 0.1)
         cout << "Warning: exceed required delay" << endl;
-    cout << "area = " << area << endl;
-    cout << "delay = " << delay << endl;
+
+    cout << "MRED = " << currentError << "; area = " << area << "; delay = " << delay << endl;
     if (isOutput) {
         ss.str("");
-        ss << "write_blif " << fileName << "_" << area << "_" << delay << ".blif";
+        ss << "write_blif " << fileName << "_area_" << area << "_delay_" << delay << ".blif";
         DASSERT(!Cmd_CommandExecute(pAbc, ss.str().c_str()));
     }
 }

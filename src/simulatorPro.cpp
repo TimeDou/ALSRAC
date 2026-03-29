@@ -1383,8 +1383,10 @@ double MeasureMRED(Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, int nFrame, unsigned se
             if (accFlt != 0.0) {
                 sum += abs(1 - appFlt / accFlt);
             } else {
-                sum += abs(1 - appFlt);
+                sum += abs(1.0);
             }
+            // bigFlt error = (accFlt != 0.0) ? (bigFlt)abs(1 - appFlt / accFlt) : (bigFlt)abs(1 - appFlt);
+            // std::cout << "Frame " << k << ", Output " << appFlt << ": acc = " << accFlt << ", app = " << appFlt << ", error = " << error << std::endl;
         }
     }
 
@@ -1444,7 +1446,7 @@ double GetNMED(Simulator_Pro_t * pSmlt1, Simulator_Pro_t * pSmlt2, bool isCheck,
         for (int k = 0; k < nFrame; ++k)
             sum += (abs(pSmlt1->GetOutput(0, nPo - 1, k, 0) - pSmlt2->GetOutput(0, nPo - 1, k, 0)));
     }
-    bigInt frac = (static_cast <bigInt> (nFrame)) << nPo;;
+    bigInt frac = (static_cast <bigInt> (nFrame)) << nPo;
     return static_cast <double> (static_cast <bigFlt>(sum) / static_cast <bigFlt>(frac));
 }
 
@@ -1538,7 +1540,7 @@ double GetNMEDFromOffset(IN vector < vector <int8_t> > & offsets)
         sum += abs(em);
     }
     // bigInt frac = (static_cast <bigInt> (nFrame)) << nPo;
-    bigInt frac = (static_cast <bigInt> (nFrame)) << bitWidthPerOutput;
+    bigInt frac = (static_cast <bigInt> (nFrame)) << bitWidthPerOutput * tmp_nOutput;
     return static_cast <double> (static_cast <bigFlt>(sum) / static_cast <bigFlt>(frac));
 }
 

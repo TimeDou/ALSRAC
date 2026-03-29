@@ -96,14 +96,16 @@ void Dcals_Man_t::DCALS()
     clock_t st = clock();
     while (metric < metricBound) {
         cout << "--------------- round " << roundId << " ---------------" << endl;
-        LocalAppChange();
-        cout << "time = " << clock() - st << endl << endl;
+        clock_t rt = LocalAppChange();
+        clock_t ck_taken = rt - st;
+        double time_taken = static_cast <double> (ck_taken) / CLOCKS_PER_SEC;
+        cout << "time = " << time_taken << endl;
         ++roundId;
     }
 }
 
 
-void Dcals_Man_t::LocalAppChange()
+clock_t Dcals_Man_t::LocalAppChange()
 {
     DASSERT(Abc_NtkIsLogic(pAppNtk));
     DASSERT(Abc_NtkToAig(pAppNtk));
@@ -135,7 +137,7 @@ void Dcals_Man_t::LocalAppChange()
     cands.reserve(8192);
     GenCand(cands);
     cout << "cand number = " << cands.size() << endl;
-    cout << "cand time = " << clock() - st << endl;
+    // cout << "cand time = " << clock() - st << endl;
     BatchErrorEst(cands, bestCand);
 
     // apply local approximate change
@@ -191,16 +193,26 @@ void Dcals_Man_t::LocalAppChange()
     // recycle memory
     delete pOriSmlt;
     delete pAppSmlt;
+    clock_t rt = clock();
 
     if (metricType == Metric_t::MRED) {
         // evaluate the current approximate circuit
         Abc_NtkSweep(pAppNtk, 0);
-        int size = Abc_NtkNodeNum(pAppNtk);
-        int depth = Abc_NtkLevel(pAppNtk);
-        cout << "MRED = " << metric << "; size = " << size << "; depth = " << depth << endl;
+        Abc_Frame_t * pAbc = Abc_FrameGetGlobalFrame();
+        Abc_FrameReplaceCurrentNetwork(pAbc, Abc_NtkDup(pAppNtk));
+        string Command = string("strash; balance; rewrite; refactor; balance; rewrite; rewrite -z; balance; refactor -z; rewrite -z; balance; logic;");
+        DASSERT(!Cmd_CommandExecute(pAbc, Command.c_str()));
+        Abc_NtkDelete(pAppNtk);
+        pAppNtk = Abc_NtkDup(Abc_FrameReadNtk(pAbc));
         ostringstream fileName("");
-        fileName << outPath << pAppNtk->pName << "_MRED_" << metric << "_Size_" << size << "_Depth_" << depth << ".blif";
-        Ckt_WriteBlif(pAppNtk, fileName.str());
+        fileName << outPath << roundId << "_" << pAppNtk->pName << "_MRED_" << metric;
+        if (!mapType)
+            Ckt_EvalASIC(pAppNtk, fileName.str(), maxDelay, true, metric);
+
+        // int size = Abc_NtkNodeNum(pAppNtk);
+        // int depth = Abc_NtkLevel(pAppNtk);
+        // cout << "MRED = " << metric << "; size = " << size << "; depth = " << depth << endl;
+        // Ckt_WriteBlif(pAppNtk, fileName.str());
     }
     else {
         int size = Abc_NtkNodeNum(pAppNtk);
@@ -222,13 +234,14 @@ void Dcals_Man_t::LocalAppChange()
             ostringstream fileName("");
             fileName << outPath << pAppNtk->pName << "_" << metric;
             if (!mapType)
-                Ckt_EvalASIC(pAppNtk, fileName.str(), maxDelay, true);
+                Ckt_EvalASIC(pAppNtk, fileName.str(), maxDelay, true, metric);
             else {
                 Ckt_EvalFPGA(pAppNtk, fileName.str(), "strash; if -K 6 -a;");
                 // Ckt_EvalFPGA(pAppNtk, fileName.str(), "strash; if -K 6;");
             }
         }
     }
+    return rt;
 }
 
 
