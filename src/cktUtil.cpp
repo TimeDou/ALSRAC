@@ -55,44 +55,24 @@ void Ckt_EvalASIC(Abc_Ntk_t * pNtk, string fileName, double maxDelay, bool isOut
 
 void Ckt_EvalFPGA(Abc_Ntk_t * pNtk, string fileName, string map)
 {
-    const string resyn2 = "strash; balance; rewrite; refactor; balance; rewrite; rewrite -z; balance; refactor -z; rewrite -z; balance;";
+    // ----------Comment out the following part-------------//
+    // const string resyn2 = "strash; balance; rewrite; refactor; balance; rewrite; rewrite -z; balance; refactor -z; rewrite -z; balance;";
+    
+    // ...
+    
+    // // output
+    // cout << "size = " << size << endl;
+    // cout << "depth = " << depth << endl;
+    // ----------------- End Comment -------------//
 
+    // ---------- Add the following part ---------------//
     Abc_Frame_t * pAbc = Abc_FrameGetGlobalFrame();
     Abc_FrameReplaceCurrentNetwork(pAbc, Abc_NtkDup(pNtk));
-    string Command = resyn2 + map;
-
-    // synthesis and mapping
-    DASSERT(!Cmd_CommandExecute(pAbc, Command.c_str()));
     int size = Abc_NtkNodeNum(Abc_FrameReadNtk(pAbc));
     int depth = Abc_NtkLevel(Abc_FrameReadNtk(pAbc));
-    int bestSize = size;
-    int bestDepth = depth;
-    bool terminate = false;
-    int nRounds = 0;
+    string Command = string("write_blif ");
+    // ------------------ End Addition -------------//
 
-    // repeat until no improvement
-    while (!terminate) {
-        terminate = true;
-        ++nRounds;
-
-        DASSERT(!Cmd_CommandExecute(pAbc, Command.c_str()));
-        size = Abc_NtkNodeNum(Abc_FrameReadNtk(pAbc));
-        depth = Abc_NtkLevel(Abc_FrameReadNtk(pAbc));
-        if (size < bestSize) {
-            bestSize = size;
-            bestDepth = depth;
-            terminate = false;
-        }
-        else if (size == bestSize && depth < bestDepth) {
-            bestDepth = depth;
-            terminate = false;
-        }
-    }
-
-    // output
-    cout << "size = " << size << endl;
-    cout << "depth = " << depth << endl;
-    Command = string("write_blif ");
     ostringstream ss("");
     ss << fileName << "_" << size << "_" << depth << ".blif";
     string str = ss.str();

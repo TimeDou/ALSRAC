@@ -4,6 +4,17 @@
 using namespace std;
 using namespace boost;
 
+static bool tmp_isSigned = false;
+static int tmp_nOutput = 0;
+
+
+void setisSigned(bool isSigned) {
+    tmp_isSigned = isSigned;
+}
+
+void setOutputNum(int nOutput) {
+    tmp_nOutput = nOutput;
+}
 
 Lac_Cand_t::Lac_Cand_t()
 {
@@ -1340,14 +1351,70 @@ double MeasureMRED(Abc_Ntk_t * pNtk1, Abc_Ntk_t * pNtk2, int nFrame, unsigned se
     typedef multiprecision::cpp_dec_float_100 bigFlt;
     bigFlt sum(0);
     int nPo = Abc_NtkPoNum(pNtk1);
+
+    int bitWidthPerOutput = nPo / tmp_nOutput;
+    assert(bitWidthPerOutput * tmp_nOutput == nPo);
+
     for (int k = 0; k < nFrame; ++k) {
-        bigFlt acc = static_cast <bigFlt>(smlt1.GetOutput(0, nPo - 1, k, 0));
-        if (acc != 0.0)
-            sum += abs(1 - static_cast <bigFlt>(smlt2.GetOutput(0, nPo - 1, k, 0)) / acc);
-        else
-            sum += abs(1 - static_cast <bigFlt>(smlt2.GetOutput(0, nPo - 1, k, 0)));
+        for (int outputIdx = 0; outputIdx < tmp_nOutput; ++outputIdx) {
+            int lsb = outputIdx * bitWidthPerOutput;
+            int msb = lsb + bitWidthPerOutput - 1;
+
+            multiprecision::int256_t accRaw = smlt1.GetOutput(lsb, msb, k, 0);
+            multiprecision::int256_t appRaw = smlt2.GetOutput(lsb, msb, k, 0);
+
+            multiprecision::int256_t acc = accRaw;
+            multiprecision::int256_t app = appRaw;
+
+            if (tmp_isSigned) {
+                if (acc & (multiprecision::int256_t(1) << (bitWidthPerOutput - 1))) {
+                    acc -= (multiprecision::int256_t(1) << bitWidthPerOutput);
+                }
+                if (app & (multiprecision::int256_t(1) << (bitWidthPerOutput - 1))) {
+                    app -= (multiprecision::int256_t(1) << bitWidthPerOutput);
+                }
+            }
+
+            // 转换为高精度浮点数
+            bigFlt accFlt = static_cast<bigFlt>(acc);
+            bigFlt appFlt = static_cast<bigFlt>(app);
+
+            // 计算误差
+            if (accFlt != 0.0) {
+                sum += abs(1 - appFlt / accFlt);
+            } else {
+                sum += abs(1 - appFlt);
+            }
+        }
     }
-    return static_cast <double> (sum / static_cast <double>(nFrame));
+
+    return static_cast<double>(sum / static_cast<double>(nFrame * tmp_nOutput));
+
+    // for (int k = 0; k < nFrame; ++k) {
+    //     multiprecision::int256_t accRaw = smlt1.GetOutput(0, nPo - 1, k, 0);
+    //     multiprecision::int256_t appRaw = smlt2.GetOutput(0, nPo - 1, k, 0);
+
+    //     int bitWidth = nPo;
+    //     multiprecision::int256_t acc = (accRaw & ((multiprecision::int256_t(1) << bitWidth) - 1));
+    //     multiprecision::int256_t app = (appRaw & ((multiprecision::int256_t(1) << bitWidth) - 1));
+
+    //     if (acc & (multiprecision::int256_t(1) << (bitWidth - 1))) {
+    //         acc -= (multiprecision::int256_t(1) << bitWidth);
+    //     }
+    //     if (app & (multiprecision::int256_t(1) << (bitWidth - 1))) {
+    //         app -= (multiprecision::int256_t(1) << bitWidth);
+    //     }
+
+    //     bigFlt accFlt = static_cast<bigFlt>(acc);
+    //     bigFlt appFlt = static_cast<bigFlt>(app);
+
+    //     if (accFlt != 0.0) {
+    //         sum += abs(1 - appFlt / accFlt);
+    //     } else {
+    //         sum += abs(1 - appFlt);
+    //     }
+    // }
+    // return static_cast <double> (sum / static_cast <double>(nFrame));
 }
 
 
@@ -1429,21 +1496,51 @@ double GetNMEDFromOffset(IN vector < vector <int8_t> > & offsets)
     typedef multiprecision::int256_t bigInt;
     typedef multiprecision::cpp_dec_float_100 bigFlt;
     bigInt sum(0);
+
+    int bitWidthPerOutput = nPo / tmp_nOutput;
+    assert(bitWidthPerOutput * tmp_nOutput == nPo);
+
     for (int j = 0; j < nFrame; ++j) {
         bigInt weight(1);
         bigInt em(0);
-        for (int i = 0; i < nPo; ++i) {
-            if (offsets[i][j] == 1)
-                em += weight;
-            else if (offsets[i][j] == -1)
-                em -= weight;
-            else if (offsets[i][j] != 0)
-                DASSERT(0);
-            weight <<= 1;
+        for (int outputIdx = 0; outputIdx < tmp_nOutput; ++outputIdx) {
+            bigInt emTmp(0);
+
+            for (int i = outputIdx * bitWidthPerOutput; i < (outputIdx + 1) * bitWidthPerOutput; ++i) {
+                if (offsets[i][j] == 1)
+                    emTmp += weight;
+                else if (offsets[i][j] == -1)
+                    emTmp -= weight;
+                else if (offsets[i][j] != 0)
+                    DASSERT(0);
+                weight <<= 1;
+            }
+
+            if (tmp_isSigned) {
+                bigInt maxVal = (bigInt(1) << (bitWidthPerOutput - 1)) - 1;
+                bigInt minVal = -bigInt(1) << (bitWidthPerOutput - 1);
+                if (emTmp > maxVal) {
+                    emTmp -= (bigInt(1) << bitWidthPerOutput);
+                } else if (emTmp < minVal) {
+                    emTmp += (bigInt(1) << bitWidthPerOutput);
+                }
+            }
+
+            em += abs(emTmp);
         }
+        // for (int i = 0; i < nPo; ++i) {
+        //     if (offsets[i][j] == 1)
+        //         em += weight;
+        //     else if (offsets[i][j] == -1)
+        //         em -= weight;
+        //     else if (offsets[i][j] != 0)
+        //         DASSERT(0);
+        //     weight <<= 1;
+        // }
         sum += abs(em);
     }
-    bigInt frac = (static_cast <bigInt> (nFrame)) << nPo;
+    // bigInt frac = (static_cast <bigInt> (nFrame)) << nPo;
+    bigInt frac = (static_cast <bigInt> (nFrame)) << bitWidthPerOutput;
     return static_cast <double> (static_cast <bigFlt>(sum) / static_cast <bigFlt>(frac));
 }
 

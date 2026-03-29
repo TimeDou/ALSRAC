@@ -4,6 +4,18 @@
 using namespace std;
 using namespace boost;
 
+static bool tmp_isSigned = false;
+static int tmp_nOutput = 0;
+
+
+void setisSigned_dcals(bool isSigned) {
+    tmp_isSigned = isSigned;
+}
+
+void setOutputNum_dcals(int nOutput) {
+    tmp_nOutput = nOutput;
+}
+
 
 Dcals_Man_t::Dcals_Man_t(Abc_Ntk_t * pNtk, int nFrame, double metricBound, Metric_t metricType, int mapType, string outPath)
 {
@@ -185,22 +197,25 @@ void Dcals_Man_t::LocalAppChange()
         Abc_NtkSweep(pAppNtk, 0);
         int size = Abc_NtkNodeNum(pAppNtk);
         int depth = Abc_NtkLevel(pAppNtk);
-        cout << "size = " << size << endl;
-        cout << "depth = " << depth << endl;
+        cout << "MRED = " << metric << "; size = " << size << "; depth = " << depth << endl;
         ostringstream fileName("");
-        fileName << outPath << pAppNtk->pName << "_" << metric << "_" << size << "_" << depth << ".blif";
+        fileName << outPath << pAppNtk->pName << "_MRED_" << metric << "_Size_" << size << "_Depth_" << depth << ".blif";
         Ckt_WriteBlif(pAppNtk, fileName.str());
     }
     else {
+        int size = Abc_NtkNodeNum(pAppNtk);
+        int depth = Abc_NtkLevel(pAppNtk);
+        cout << "size = " << size << endl;
+        cout << "depth = " << depth << endl;
         // disturb the network
         if (roundId % 10 == 0) {
             Abc_NtkSweep(pAppNtk, 0);
-            Abc_Frame_t * pAbc = Abc_FrameGetGlobalFrame();
-            Abc_FrameReplaceCurrentNetwork(pAbc, Abc_NtkDup(pAppNtk));
-            string Command = string("strash; balance; rewrite; refactor; balance; rewrite; rewrite -z; balance; refactor -z; rewrite -z; balance; logic;");
-            DASSERT(!Cmd_CommandExecute(pAbc, Command.c_str()));
-            Abc_NtkDelete(pAppNtk);
-            pAppNtk = Abc_NtkDup(Abc_FrameReadNtk(pAbc));
+            // Abc_Frame_t * pAbc = Abc_FrameGetGlobalFrame();
+            // Abc_FrameReplaceCurrentNetwork(pAbc, Abc_NtkDup(pAppNtk));
+            // string Command = string("strash; balance; rewrite; refactor; balance; rewrite; rewrite -z; balance; refactor -z; rewrite -z; balance; logic;");
+            // DASSERT(!Cmd_CommandExecute(pAbc, Command.c_str()));
+            // Abc_NtkDelete(pAppNtk);
+            // pAppNtk = Abc_NtkDup(Abc_FrameReadNtk(pAbc));
         }
         // evaluate the current approximate circuit
         if (roundId % 10 == 0 || metric > 0.01 * metricBound) {
@@ -598,6 +613,16 @@ void Dcals_Man_t::BatchErrorEst(IN vector <Lac_Cand_t> & cands, OUT Lac_Cand_t &
                         }
                     }
                     ++frameId;
+                }
+            }
+            if (tmp_isSigned) {
+                for (int i = 0; i < offsetsTmp.size(); ++i) {
+                    for (int j = 0; j < offsetsTmp[i].size(); ++j) {
+                        int bitWidthPerOutput = nPo / tmp_nOutput;
+                        if (offsetsTmp[i][j] & (1 << (bitWidthPerOutput - 1))) {
+                            offsetsTmp[i][j] -= (1 << bitWidthPerOutput);
+                        }
+                    }
                 }
             }
             double er = GetNMEDFromOffset(offsetsTmp);

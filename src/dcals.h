@@ -2,12 +2,15 @@
 #define DCALS_H
 
 
+#define BOOST_TIMER_ENABLE_DEPRECATED
 #include <boost/progress.hpp>
 #include <boost/random.hpp>
 #include "simulatorPro.h"
 #include "cktUtil.h"
 #include "espressoApi.h"
 
+void setisSigned_dcals(bool isSigned);
+void setOutputNum_dcals(int nOutput);
 
 class Dcals_Man_t
 {

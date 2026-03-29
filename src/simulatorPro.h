@@ -18,6 +18,9 @@ enum class Map_t{SCL, LUT};
 typedef std::vector <uint64_t> tVec;
 
 
+void setisSigned(bool isSigned);
+void setOutputNum(int nOutput);
+
 class Lac_Cand_t
 {
 private:
