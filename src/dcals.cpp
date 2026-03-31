@@ -93,9 +93,9 @@ void Dcals_Man_t::DCALS()
     Abc_NtkSweep(pAppNtk, 0);
 
     // main loop
-    clock_t st = clock();
     while (metric < metricBound) {
         cout << "--------------- round " << roundId << " ---------------" << endl;
+        clock_t st = clock();
         clock_t rt = LocalAppChange();
         clock_t ck_taken = rt - st;
         double time_taken = static_cast <double> (ck_taken) / CLOCKS_PER_SEC;
@@ -205,9 +205,10 @@ clock_t Dcals_Man_t::LocalAppChange()
         Abc_NtkDelete(pAppNtk);
         pAppNtk = Abc_NtkDup(Abc_FrameReadNtk(pAbc));
         ostringstream fileName("");
-        fileName << outPath << roundId << "_" << pAppNtk->pName << "_MRED_" << metric;
+        fileName << outPath << roundId << "_" << pAppNtk->pName << "_MRED_" << metric << ".blif";
+        Ckt_WriteBlif(pAppNtk, fileName.str());
         if (!mapType)
-            Ckt_EvalASIC(pAppNtk, fileName.str(), maxDelay, true, metric);
+            Ckt_EvalASIC(pAppNtk, fileName.str(), maxDelay, false, metric);
 
         // int size = Abc_NtkNodeNum(pAppNtk);
         // int depth = Abc_NtkLevel(pAppNtk);
